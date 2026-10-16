@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ckb" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تێکەڵکردنی کاتەکانی داتابەیس</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1b2430;--mute:#66707d;--line:#d9dde3;--acc:#0f6e6e;--accInk:#fff;--ok:#1a7f45;--bad:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#12171d;--card:#1b222b;--ink:#e8ecf1;--mute:#9aa5b1;--line:#2c3541;--acc:#4cc2bd;--accInk:#08201f;--ok:#5fd38d;--bad:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,"Noto Naskh Arabic",Tahoma,sans-serif;padding:16px}
+main{max-width:640px;margin:0 auto;display:grid;gap:14px}
+h1{font-size:1.3rem;margin:4px 0}
+section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+h2{font-size:1rem;margin:0 0 8px}
+p.h{margin:0 0 10px;color:var(--mute);font-size:.9rem}
+input[type=file]{display:none}
+.btn{display:inline-block;background:var(--acc);color:var(--accInk);border:0;border-radius:8px;padding:9px 16px;font:inherit;cursor:pointer}
+.btn.alt{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.src{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+.src b{word-break:break-all}
+.src small{color:var(--mute);display:block}
+label{font-size:.9rem;color:var(--mute)}
+input[type=number],input[type=text]{width:84px;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;text-align:center}
+#outName{width:100%;direction:ltr;text-align:left}
+#log{white-space:pre-wrap;direction:rtl;font-size:.9rem;margin:0;color:var(--mute)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+</style>
+</head>
+<body>
+<main>
+<h1>تێکەڵکردنی کاتەکانی داتابەیس</h1>
+
+<section>
+<h2>1. داتابەیسی بنەڕەت</h2>
+<p class="h">ئەو فایلەی کاتەکانی تێدا زیاد دەکرێن (بۆ نموونە 1-114.db). هیچ شتێکی تری دەستکاری ناکرێت.</p>
+<label class="btn alt" for="baseF">هەڵبژاردنی فایل</label>
+<input type="file" id="baseF" accept=".db,.sqlite,.sqlite3">
+<div id="baseInfo" class="h" style="margin-top:8px"></div>
+</section>
+
+<section>
+<h2>2. داتابەیسەکانی سەرچاوە</h2>
+<p class="h">یەک یان زیاتر. بۆ هەر یەکێک ڕێژەی سورەتەکان دیاری بکە. ڕیزی 999ی هەر سورەتێک خۆکارانە لەگەڵیدا دەگوازرێتەوە.</p>
+<label class="btn alt" for="srcF">زیادکردنی فایل</label>
+<input type="file" id="srcF" accept=".db,.sqlite,.sqlite3" multiple>
+<div id="srcs"></div>
+</section>
+
+<section>
+<h2>3. تێکەڵکردن</h2>
+<label for="outName">ناوی فایلی دەرچوو</label>
+<input type="text" id="outName" value="merged.db">
+<div class="row" style="margin-top:10px">
+<button class="btn" id="go" disabled>تێکەڵکردن و دابەزاندن</button>
+</div>
+<p id="log" style="margin-top:10px"></p>
+</section>
+</main>
+
+<script src="sql-wasm.js"></script>
+<script>
+// بۆ بەکارهێنانی ئۆفلاین: sql-wasm.js و sql-wasm.wasm بخە تەنیشت ئەم فایلە و ئەم ڕێگایە بگۆڕە
+const SQLJS_BASE = "./";
+const $ = id => document.getElementById(id);
+let SQL, base = null, sources = [], uid = 0;
+
+const log = (t, cls) => { const p = $("log"); p.className = cls || ""; p.textContent = t; };
+
+async function openDb(file) {
+  const db = new SQL.Database(new Uint8Array(await file.arrayBuffer()));
+  const t = db.exec("select 1 from sqlite_master where name='timings'");
+  if (!t.length) { db.close(); throw new Error("خشتەی timings لە " + file.name + " نەدۆزرایەوە"); }
+  return db;
+}
+function rangeFromName(name) {
+  const n = name.replace(/\.(db|sqlite3?|sqlite)$/i, "");
+  const m = n.match(/(\d{1,3})\s*[-\u2013_]\s*(\d{1,3})/) || n.match(/(\d{1,3})/);
+  if (!m) return null;
+  let a = +m[1], b = +(m[2] || m[1]);
+  if (a > b) [a, b] = [b, a];
+  return a >= 1 && b <= 114 ? [a, b] : null;
+}
+function stats(db) {
+  const r = db.exec("select count(*), min(case when time<>0 then sura end), max(case when time<>0 then sura end) from timings")[0].values[0];
+  return { rows: r[0], from: r[1], to: r[2] };
+}
+function refresh() {
+  $("go").disabled = !(base && sources.length);
+  $("srcs").innerHTML = "";
+  sources.forEach(s => {
+    const d = document.createElement("div"); d.className = "src";
+    const hdr = document.createElement("div"); hdr.className = "row"; hdr.style.justifyContent = "space-between";
+    const nm = document.createElement("b"); nm.textContent = s.name;
+    const rm = document.createElement("button"); rm.className = "btn alt"; rm.textContent = "لابردن";
+    rm.onclick = () => { s.db.close(); sources = sources.filter(x => x !== s); refresh(); };
+    hdr.append(nm, rm);
+    const sm = document.createElement("small");
+    sm.textContent = s.st.from ? `${s.st.rows} ڕیز · سورەتی کاتدار: ${s.st.from} تا ${s.st.to}` : `${s.st.rows} ڕیز · هیچ کاتێکی ناسفر نییە`;
+    sm.textContent += ` · ڕێژە لە ${s.by}ـەوە وەرگیرا`;
+    const r = document.createElement("div"); r.className = "row"; r.style.marginTop = "8px";
+    const a = document.createElement("input"), b = document.createElement("input");
+    a.type = b.type = "text"; a.inputMode = b.inputMode = "numeric"; a.lang = b.lang = "en"; a.dir = b.dir = "ltr";
+    a.value = s.from; b.value = s.to;
+    const AR = "٠١٢٣٤٥٦٧٨٩", FA = "۰۱۲۳۴۵۶۷۸۹";
+    const clean = el => { el.value = el.value.replace(/[٠-٩۰-۹]/g, c => { const i = AR.indexOf(c); return i >= 0 ? i : FA.indexOf(c); }).replace(/\D/g, "").slice(0, 3); };
+    a.oninput = () => { clean(a); s.from = +a.value; }; b.oninput = () => { clean(b); s.to = +b.value; };
+    const l1 = document.createElement("label"); l1.textContent = "لە سورەتی";
+    const l2 = document.createElement("label"); l2.textContent = "تا سورەتی";
+    r.append(l1, a, l2, b);
+    d.append(hdr, sm, r); $("srcs").append(d);
+  });
+}
+
+$("baseF").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    if (base) base.close();
+    base = await openDb(f); base.name = f.name;
+    const st = stats(base);
+    $("baseInfo").textContent = `${f.name} · ${st.rows} ڕیز`;
+    if (!$("outName").dataset.touched) $("outName").value = f.name.replace(/\.db$/i, "") + "-merged.db";
+    log("");
+  } catch (err) { base = null; $("baseInfo").textContent = ""; log(err.message, "bad"); }
+  refresh();
+};
+$("outName").oninput = e => e.target.dataset.touched = 1;
+
+$("srcF").onchange = async e => {
+  for (const f of e.target.files) {
+    try {
+      const db = await openDb(f), st = stats(db);
+      const nr = rangeFromName(f.name);
+      sources.push({ id: ++uid, name: f.name, db, st, by: nr ? "ناوی فایل" : "ناوەڕۆک",
+        from: nr ? nr[0] : (st.from || 1), to: nr ? nr[1] : (st.to || 114) });
+    } catch (err) { log(err.message, "bad"); }
+  }
+  e.target.value = ""; refresh();
+};
+
+function saveBytes(bytes, name) {
+  if (window.AndroidBridge) {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    AndroidBridge.save(name, btoa(bin));
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+  a.download = name; document.body.append(a); a.click(); a.remove();
+}
+$("go").onclick = () => {
+  try {
+    const upd = base.prepare("update timings set time=? where sura=? and ayah=?");
+    const ins = base.prepare("insert into timings (sura,ayah,time) values (?,?,?)");
+    let out = [];
+    base.run("begin");
+    for (const s of sources) {
+      const lo = Math.min(s.from, s.to), hi = Math.max(s.from, s.to);
+      const q = s.db.prepare("select sura,ayah,time from timings where sura between ? and ?", [lo, hi]);
+      let u = 0, n = 0, k = 0;
+      while (q.step()) {
+        const [su, ay, t] = q.get();
+        upd.run([t, su, ay]);
+        if (base.getRowsModified() > 0) u++; else { ins.run([su, ay, t]); n++; }
+        if (ay === 999) k++;
+      }
+      q.free();
+      out.push(`${s.name} (سورەتی ${lo}–${hi}): ${u} نوێکرایەوە، ${n} زیادکرا، ${k} ڕیزی 999`);
+    }
+    base.run("commit"); upd.free(); ins.free();
+    const bytes = base.export();
+    saveBytes(bytes, $("outName").value.trim() || "merged.db");
+    log("تەواو بوو ✓\n" + out.join("\n"), "ok");
+  } catch (err) { try { base.run("rollback"); } catch (_) {} log("هەڵە: " + err.message, "bad"); }
+};
+
+initSqlJs({ locateFile: f => SQLJS_BASE + f }).then(m => SQL = m).catch(() => log("sql.js بار نەبوو. ئینتەرنێت بپشکنە یان فایلەکانی sql.js بخە تەنیشت ئەم فایلە.", "bad"));
+</script>
+</body>
+</html>
