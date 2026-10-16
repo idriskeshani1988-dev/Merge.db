@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ckb" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DB Merge</title>
+<style>
+:root{color-scheme:light;--bg:#f6f7f9;--card:#fff;--ink:#1b2430;--mute:#66707d;--line:#d9dde3;--acc:#0f6e6e;--accInk:#fff;--ok:#1a7f45;--bad:#b3261e}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#12171d;--card:#1b222b;--ink:#e8ecf1;--mute:#9aa5b1;--line:#2c3541;--acc:#4cc2bd;--accInk:#08201f;--ok:#5fd38d;--bad:#ff8a80}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#12171d;--card:#1b222b;--ink:#e8ecf1;--mute:#9aa5b1;--line:#2c3541;--acc:#4cc2bd;--accInk:#08201f;--ok:#5fd38d;--bad:#ff8a80}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,"Noto Naskh Arabic",Tahoma,sans-serif;padding:0 16px 16px}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 0;margin:0 auto 6px;max-width:640px;border-bottom:1px solid var(--line)}
+.top button,.top select{font:inherit;color:var(--acc);background:transparent;border:1px solid var(--acc);border-radius:8px;padding:6px 12px;cursor:pointer;min-height:40px}
+.top select{background:var(--card);color:var(--ink);border-color:var(--line)}
+main{max-width:640px;margin:0 auto;display:grid;gap:14px}
+h1{font-size:1.3rem;margin:4px 0}
+section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+h2{font-size:1rem;margin:0 0 8px}
+p.h{margin:0 0 10px;color:var(--mute);font-size:.9rem}
+input[type=file]{display:none}
+.btn{display:inline-block;background:var(--acc);color:var(--accInk);border:0;border-radius:8px;padding:9px 16px;font:inherit;cursor:pointer}
+.btn.alt{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.src{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+.src b{word-break:break-all}
+.src small{color:var(--mute);display:block}
+label{font-size:.9rem;color:var(--mute)}
+.rng{width:84px;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;text-align:center}
+#outName{width:100%;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;direction:ltr;text-align:left}
+#log{white-space:pre-wrap;font-size:.9rem;margin:0;color:var(--mute)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+</style>
+</head>
+<body>
+<header class="top">
+  <button id="themeBtn" aria-label="Theme">☾</button>
+  <select id="langSel" aria-label="Language">
+    <option value="ckb">کوردی</option>
+    <option value="ar">العربية</option>
+    <option value="en">English</option>
+  </select>
+  <button id="refreshBtn">↻ <span data-i18n="refresh"></span></button>
+</header>
+<main>
+<h1 data-i18n="appTitle"></h1>
+
+<section>
+<h2 data-i18n="s1"></h2>
+<p class="h" data-i18n="s1h"></p>
+<label class="btn alt" for="baseF" data-i18n="pick"></label>
+<input type="file" id="baseF" accept=".db,.sqlite,.sqlite3">
+<div id="baseInfo" class="h" style="margin-top:8px"></div>
+</section>
+
+<section>
+<h2 data-i18n="s2"></h2>
+<p class="h" data-i18n="s2h"></p>
+<label class="btn alt" for="srcF" data-i18n="add"></label>
+<input type="file" id="srcF" accept=".db,.sqlite,.sqlite3" multiple>
+<div id="srcs"></div>
+</section>
+
+<section>
+<h2 data-i18n="s3"></h2>
+<label for="outName" data-i18n="outLabel"></label>
+<input type="text" id="outName" value="merged.db">
+<div class="row" style="margin-top:10px">
+<button class="btn" id="go" disabled data-i18n="go"></button>
+</div>
+<p id="log" style="margin-top:10px"></p>
+</section>
+</main>
+
+<script src="sql-wasm.js"></script>
+<script>
+const SQLJS_BASE = "./";
+const $ = id => document.getElementById(id);
+
+/* ---------- i18n ---------- */
+const I18N = {
+  ckb: {
+    appTitle: "تێکەڵکردنی کاتەکانی داتابەیس", refresh: "ڕیفرێش",
+    s1: "1. داتابەیسی بنەڕەت",
+    s1h: "ئەو فایلەی کاتەکانی تێدا زیاد دەکرێن (بۆ نموونە 1-114.db). هیچ شتێکی تری دەستکاری ناکرێت.",
+    pick: "هەڵبژاردنی فایل",
+    s2: "2. داتابەیسەکانی سەرچاوە",
+    s2h: "یەک یان زیاتر. بۆ هەر یەکێک ڕێژەی سورەتەکان دیاری بکە. ڕیزی 999ی هەر سورەتێک خۆکارانە لەگەڵیدا دەگوازرێتەوە.",
+    add: "زیادکردنی فایل", s3: "3. تێکەڵکردن", outLabel: "ناوی فایلی دەرچوو",
+    go: "تێکەڵکردن و دابەزاندن", remove: "لابردن", from: "لە سورەتی", to: "تا سورەتی",
+    baseInfo: "{name} · {rows} ڕیز",
+    hasTimes: "{rows} ڕیز · سورەتی کاتدار: {from} تا {to}",
+    noTimes: "{rows} ڕیز · هیچ کاتێکی ناسفر نییە",
+    byName: "ڕێژە لە ناوی فایلەوە وەرگیرا", byContent: "ڕێژە لە ناوەڕۆکەوە وەرگیرا",
+    noTable: "خشتەی timings لە {name} نەدۆزرایەوە",
+    sqlFail: "sql.js بار نەبوو. ئینتەرنێت بپشکنە یان فایلەکانی sql.js بخە تەنیشت ئەم فایلە.",
+    done: "تەواو بوو ✓", err: "هەڵە: ",
+    mergeLine: "{name} (سورەتی {lo}–{hi}): {u} نوێکرایەوە، {n} زیادکرا، {k} ڕیزی 999",
+    themeToLight: "ڕووناک", themeToDark: "تاریک"
+  },
+  ar: {
+    appTitle: "دمج أوقات قاعدة البيانات", refresh: "تحديث",
+    s1: "1. قاعدة البيانات الأساسية",
+    s1h: "الملف الذي ستُضاف إليه الأوقات (مثال: 1-114.db). لا يتم تعديل أي شيء آخر.",
+    pick: "اختيار ملف",
+    s2: "2. قواعد بيانات المصدر",
+    s2h: "ملف واحد أو أكثر. حدّد نطاق السور لكل ملف. صف 999 لكل سورة يُنقل تلقائياً معها.",
+    add: "إضافة ملف", s3: "3. الدمج", outLabel: "اسم الملف الناتج",
+    go: "دمج وتنزيل", remove: "إزالة", from: "من سورة", to: "إلى سورة",
+    baseInfo: "{name} · {rows} صف",
+    hasTimes: "{rows} صف · السور ذات الأوقات: {from} إلى {to}",
+    noTimes: "{rows} صف · لا توجد أوقات غير صفرية",
+    byName: "النطاق مأخوذ من اسم الملف", byContent: "النطاق مأخوذ من المحتوى",
+    noTable: "الجدول timings غير موجود في {name}",
+    sqlFail: "تعذّر تحميل sql.js. تحقق من الإنترنت أو ضع ملفات sql.js بجانب هذا الملف.",
+    done: "تم ✓", err: "خطأ: ",
+    mergeLine: "{name} (السور {lo}–{hi}): تم تحديث {u}، وإضافة {n}، و{k} صف 999",
+    themeToLight: "فاتح", themeToDark: "داكن"
+  },
+  en: {
+    appTitle: "Merge database timings", refresh: "Refresh",
+    s1: "1. Base database",
+    s1h: "The file that receives the timings (e.g. 1-114.db). Nothing else is modified.",
+    pick: "Choose file",
+    s2: "2. Source databases",
+    s2h: "One or more. Set the sura range for each. The 999 row of every sura is carried over automatically.",
+    add: "Add file", s3: "3. Merge", outLabel: "Output file name",
+    go: "Merge and download", remove: "Remove", from: "From sura", to: "To sura",
+    baseInfo: "{name} · {rows} rows",
+    hasTimes: "{rows} rows · suras with timings: {from} to {to}",
+    noTimes: "{rows} rows · no non-zero timings",
+    byName: "Range taken from file name", byContent: "Range taken from content",
+    noTable: "Table timings not found in {name}",
+    sqlFail: "Could not load sql.js. Check your internet or put the sql.js files next to this file.",
+    done: "Done ✓", err: "Error: ",
+    mergeLine: "{name} (suras {lo}–{hi}): {u} updated, {n} added, {k} rows of 999",
+    themeToLight: "Light", themeToDark: "Dark"
+  }
+};
+let lang = "ckb";
+const t = (k, p = {}) => (I18N[lang][k] || k).replace(/\{(\w+)\}/g, (_, x) => p[x] ?? "");
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+};
+
+/* ---------- state ---------- */
+let SQL, base = null, sources = [], uid = 0, logFn = null, logCls = "";
+const setLog = (fn, cls) => { logFn = fn; logCls = cls || ""; renderLog(); };
+function renderLog() { const p = $("log"); p.className = logCls; p.textContent = logFn ? logFn() : ""; }
+function renderBase() { $("baseInfo").textContent = base ? t("baseInfo", { name: base.name, rows: base.rows }) : ""; }
+function showErr(err) { setLog(() => err.i18n ? t(err.i18n[0], err.i18n[1]) : t("err") + err.message, "bad"); }
+
+/* ---------- theme ---------- */
+const mq = matchMedia("(prefers-color-scheme: dark)");
+const effTheme = () => document.documentElement.dataset.theme || (mq.matches ? "dark" : "light");
+function renderTheme() {
+  const dark = effTheme() === "dark";
+  $("themeBtn").textContent = dark ? "☀" : "☾";
+  $("themeBtn").title = dark ? t("themeToLight") : t("themeToDark");
+}
+$("themeBtn").onclick = () => {
+  const next = effTheme() === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next; store.set("dbm_theme", next); renderTheme();
+};
+mq.addEventListener && mq.addEventListener("change", renderTheme);
+
+/* ---------- language ---------- */
+function applyLang(l) {
+  lang = I18N[l] ? l : "ckb";
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "en" ? "ltr" : "rtl";
+  $("langSel").value = lang; store.set("dbm_lang", lang);
+  document.querySelectorAll("[data-i18n]").forEach(el => el.textContent = t(el.dataset.i18n));
+  document.title = t("appTitle");
+  renderTheme(); renderBase(); refresh(); renderLog();
+}
+$("langSel").onchange = e => applyLang(e.target.value);
+
+/* ---------- db helpers ---------- */
+async function openDb(file) {
+  const db = new SQL.Database(new Uint8Array(await file.arrayBuffer()));
+  if (!db.exec("select 1 from sqlite_master where name='timings'").length) {
+    db.close(); const e = new Error("no table"); e.i18n = ["noTable", { name: file.name }]; throw e;
+  }
+  return db;
+}
+function rangeFromName(name) {
+  const n = name.replace(/\.(db|sqlite3?|sqlite)$/i, "");
+  const m = n.match(/(\d{1,3})\s*[-\u2013_]\s*(\d{1,3})/) || n.match(/(\d{1,3})/);
+  if (!m) return null;
+  let a = +m[1], b = +(m[2] || m[1]);
+  if (a > b) [a, b] = [b, a];
+  return a >= 1 && b <= 114 ? [a, b] : null;
+}
+function stats(db) {
+  const r = db.exec("select count(*), min(case when time<>0 then sura end), max(case when time<>0 then sura end) from timings")[0].values[0];
+  return { rows: r[0], from: r[1], to: r[2] };
+}
+
+/* ---------- UI ---------- */
+const AR = "٠١٢٣٤٥٦٧٨٩", FA = "۰۱۲۳۴۵۶۷۸۹";
+const latin = v => v.replace(/[٠-٩۰-۹]/g, c => { const i = AR.indexOf(c); return i >= 0 ? i : FA.indexOf(c); }).replace(/\D/g, "").slice(0, 3);
+function refresh() {
+  $("go").disabled = !(base && sources.length);
+  $("srcs").innerHTML = "";
+  sources.forEach(s => {
+    const d = document.createElement("div"); d.className = "src";
+    const hdr = document.createElement("div"); hdr.className = "row"; hdr.style.justifyContent = "space-between";
+    const nm = document.createElement("b"); nm.textContent = s.name; nm.dir = "ltr";
+    const rm = document.createElement("button"); rm.className = "btn alt"; rm.textContent = t("remove");
+    rm.onclick = () => { s.db.close(); sources = sources.filter(x => x !== s); refresh(); };
+    hdr.append(nm, rm);
+    const sm = document.createElement("small");
+    sm.textContent = (s.st.from ? t("hasTimes", { rows: s.st.rows, from: s.st.from, to: s.st.to }) : t("noTimes", { rows: s.st.rows }))
+      + " · " + t(s.by === "name" ? "byName" : "byContent");
+    const r = document.createElement("div"); r.className = "row"; r.style.marginTop = "8px";
+    const a = document.createElement("input"), b = document.createElement("input");
+    for (const [el, k] of [[a, "from"], [b, "to"]]) {
+      el.type = "text"; el.inputMode = "numeric"; el.lang = "en"; el.dir = "ltr"; el.className = "rng"; el.value = s[k];
+      el.oninput = () => { el.value = latin(el.value); s[k] = +el.value; };
+    }
+    const l1 = document.createElement("label"); l1.textContent = t("from");
+    const l2 = document.createElement("label"); l2.textContent = t("to");
+    r.append(l1, a, l2, b);
+    d.append(hdr, sm, r); $("srcs").append(d);
+  });
+}
+
+$("baseF").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    if (base) base.close();
+    base = await openDb(f); base.name = f.name; base.rows = stats(base).rows;
+    if (!$("outName").dataset.touched) $("outName").value = f.name.replace(/\.db$/i, "") + "-merged.db";
+    setLog(null);
+  } catch (err) { base = null; showErr(err); }
+  renderBase(); refresh();
+};
+$("outName").oninput = e => e.target.dataset.touched = 1;
+
+$("srcF").onchange = async e => {
+  for (const f of e.target.files) {
+    try {
+      const db = await openDb(f), st = stats(db), nr = rangeFromName(f.name);
+      sources.push({ id: ++uid, name: f.name, db, st, by: nr ? "name" : "content",
+        from: nr ? nr[0] : (st.from || 1), to: nr ? nr[1] : (st.to || 114) });
+    } catch (err) { showErr(err); }
+  }
+  e.target.value = ""; refresh();
+};
+
+/* ---------- reset ---------- */
+$("refreshBtn").onclick = () => {
+  if (base) { base.close(); base = null; }
+  sources.forEach(s => s.db.close()); sources = []; uid = 0;
+  $("baseF").value = ""; $("srcF").value = "";
+  $("outName").value = "merged.db"; delete $("outName").dataset.touched;
+  setLog(null); renderBase(); refresh(); window.scrollTo(0, 0);
+};
+
+/* ---------- save + merge ---------- */
+function saveBytes(bytes, name) {
+  if (window.AndroidBridge) {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    AndroidBridge.save(name, btoa(bin));
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+  a.download = name; document.body.append(a); a.click(); a.remove();
+}
+$("go").onclick = () => {
+  try {
+    const upd = base.prepare("update timings set time=? where sura=? and ayah=?");
+    const ins = base.prepare("insert into timings (sura,ayah,time) values (?,?,?)");
+    const out = [];
+    base.run("begin");
+    for (const s of sources) {
+      const lo = Math.min(s.from, s.to), hi = Math.max(s.from, s.to);
+      const q = s.db.prepare("select sura,ayah,time from timings where sura between ? and ?", [lo, hi]);
+      let u = 0, n = 0, k = 0;
+      while (q.step()) {
+        const [su, ay, tm] = q.get();
+        upd.run([tm, su, ay]);
+        if (base.getRowsModified() > 0) u++; else { ins.run([su, ay, tm]); n++; }
+        if (ay === 999) k++;
+      }
+      q.free();
+      out.push({ name: s.name, lo, hi, u, n, k });
+    }
+    base.run("commit"); upd.free(); ins.free();
+    saveBytes(base.export(), $("outName").value.trim() || "merged.db");
+    setLog(() => t("done") + "\n" + out.map(o => t("mergeLine", o)).join("\n"), "ok");
+  } catch (err) { try { base.run("rollback"); } catch (_) {} showErr(err); }
+};
+
+/* ---------- start ---------- */
+const th = store.get("dbm_theme"); if (th === "dark" || th === "light") document.documentElement.dataset.theme = th;
+applyLang(store.get("dbm_lang") || "ckb");
+initSqlJs({ locateFile: f => SQLJS_BASE + f }).then(m => SQL = m).catch(() => setLog(() => t("sqlFail"), "bad"));
+</script>
+</body>
+</html>
