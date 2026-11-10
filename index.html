@@ -17,6 +17,7 @@ main{max-width:640px;margin:0 auto;display:grid;gap:14px}
 h1{font-size:1.3rem;margin:4px 0}
 section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
 h2{font-size:1rem;margin:0 0 8px}
+hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 p.h{margin:0 0 10px;color:var(--mute);font-size:.9rem}
 input[type=file]{display:none}
 .btn{display:inline-block;background:var(--acc);color:var(--accInk);border:0;border-radius:8px;padding:9px 16px;font:inherit;cursor:pointer}
@@ -28,7 +29,7 @@ input[type=file]{display:none}
 .src small{color:var(--mute);display:block}
 label{font-size:.9rem;color:var(--mute)}
 .rng{width:84px;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;text-align:center}
-#outName{width:100%;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;direction:ltr;text-align:left}
+#outName,#zeroOut{width:100%;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;direction:ltr;text-align:left}
 #log{white-space:pre-wrap;font-size:.9rem;margin:0;color:var(--mute)}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
 </style>
@@ -52,42 +53,49 @@ label{font-size:.9rem;color:var(--mute)}
 <label class="btn alt" for="baseF" data-i18n="pick"></label>
 <input type="file" id="baseF" accept=".db,.sqlite,.sqlite3">
 <div id="baseInfo" class="h" style="margin-top:8px"></div>
-</section>
-
-<section>
+<hr>
 <h2 data-i18n="s2"></h2>
 <p class="h" data-i18n="s2h"></p>
 <label class="btn alt" for="srcF" data-i18n="add"></label>
 <input type="file" id="srcF" accept=".db,.sqlite,.sqlite3" multiple>
 <div id="srcs"></div>
-</section>
-
-<section>
+<hr>
 <h2 data-i18n="s3"></h2>
 <label for="outName" data-i18n="outLabel"></label>
-<input type="text" id="outName" value="merged.db">
+<input type="text" id="outName" value="output.db">
 <div class="row" style="margin-top:10px">
 <button class="btn" id="go" disabled data-i18n="go"></button>
 </div>
 <p id="log" style="margin-top:10px"></p>
 </section>
+
+<section>
+<h2 data-i18n="s4"></h2>
+<p class="h" data-i18n="s4h"></p>
+<label class="btn alt" for="zeroF" data-i18n="pick"></label>
+<input type="file" id="zeroF" accept=".db,.sqlite,.sqlite3">
+<div id="zeroInfo" class="h" style="margin-top:8px;white-space:pre-line"></div>
+<input type="text" id="zeroOut" value="output.db">
+<div class="row" style="margin-top:10px">
+<button class="btn" id="zeroGo" disabled data-i18n="zeroGo"></button>
+</div>
+<p id="zlog" style="margin-top:10px"></p>
+</section>
 </main>
 
-<script src="sql-wasm.js"></script>
 <script>
-const SQLJS_BASE = "./";
 const $ = id => document.getElementById(id);
 
 /* ---------- i18n ---------- */
 const I18N = {
   ckb: {
     appTitle: "تێکەڵکردنی کاتەکانی داتابەیس", refresh: "ڕیفرێش",
-    s1: "1. داتابەیسی بنەڕەت",
+    s1: "داتابەیسی بنەڕەت",
     s1h: "ئەو فایلەی کاتەکانی تێدا زیاد دەکرێن (بۆ نموونە 1-114.db). هیچ شتێکی تری دەستکاری ناکرێت.",
     pick: "هەڵبژاردنی فایل",
-    s2: "2. داتابەیسەکانی سەرچاوە",
+    s2: "داتابەیسەکانی سەرچاوە",
     s2h: "یەک یان زیاتر. بۆ هەر یەکێک ڕێژەی سورەتەکان دیاری بکە. ڕیزی 999ی هەر سورەتێک خۆکارانە لەگەڵیدا دەگوازرێتەوە.",
-    add: "زیادکردنی فایل", s3: "3. تێکەڵکردن", outLabel: "ناوی فایلی دەرچوو",
+    add: "زیادکردنی فایل", s3: "تێکەڵکردن", outLabel: "ناوی فایلی دەرچوو",
     go: "تێکەڵکردن و دابەزاندن", remove: "لابردن", from: "لە سورەتی", to: "تا سورەتی",
     baseInfo: "{name} · {rows} ڕیز",
     hasTimes: "{rows} ڕیز · سورەتی کاتدار: {from} تا {to}",
@@ -97,16 +105,17 @@ const I18N = {
     sqlFail: "sql.js بار نەبوو. ئینتەرنێت بپشکنە یان فایلەکانی sql.js بخە تەنیشت ئەم فایلە.",
     done: "تەواو بوو ✓", err: "هەڵە: ",
     mergeLine: "{name} (سورەتی {lo}–{hi}): {u} نوێکرایەوە، {n} زیادکرا، {k} ڕیزی 999",
-    themeToLight: "ڕووناک", themeToDark: "تاریک"
+    themeToLight: "ڕووناک", themeToDark: "تاریک",
+    s4: "سفرکردنی کاتەکان", s4h: "هەموو ژمارەکانی ستوونی time دەکرێن بە 0 بۆ ئەوەی دواتر داتای نوێ لە شوێنیان دابنێیت. هیچ شتێکی تر دەستکاری ناکرێت.", zeroInfo: "داتابەیس: {name}\nلەم داتابەیسەدا = {rows} ڕێز هەیە\nسفرکردنی تایم = {rows} ڕێز", zeroGo: "سفرکردن و دابەزاندن", zeroDone: "تەواو بوو ✓\nسفرکردنی تایم = {n} ڕێز"
   },
   ar: {
     appTitle: "دمج أوقات قاعدة البيانات", refresh: "تحديث",
-    s1: "1. قاعدة البيانات الأساسية",
+    s1: "قاعدة البيانات الأساسية",
     s1h: "الملف الذي ستُضاف إليه الأوقات (مثال: 1-114.db). لا يتم تعديل أي شيء آخر.",
     pick: "اختيار ملف",
-    s2: "2. قواعد بيانات المصدر",
+    s2: "قواعد بيانات المصدر",
     s2h: "ملف واحد أو أكثر. حدّد نطاق السور لكل ملف. صف 999 لكل سورة يُنقل تلقائياً معها.",
-    add: "إضافة ملف", s3: "3. الدمج", outLabel: "اسم الملف الناتج",
+    add: "إضافة ملف", s3: "الدمج", outLabel: "اسم الملف الناتج",
     go: "دمج وتنزيل", remove: "إزالة", from: "من سورة", to: "إلى سورة",
     baseInfo: "{name} · {rows} صف",
     hasTimes: "{rows} صف · السور ذات الأوقات: {from} إلى {to}",
@@ -116,16 +125,17 @@ const I18N = {
     sqlFail: "تعذّر تحميل sql.js. تحقق من الإنترنت أو ضع ملفات sql.js بجانب هذا الملف.",
     done: "تم ✓", err: "خطأ: ",
     mergeLine: "{name} (السور {lo}–{hi}): تم تحديث {u}، وإضافة {n}، و{k} صف 999",
-    themeToLight: "فاتح", themeToDark: "داكن"
+    themeToLight: "فاتح", themeToDark: "داكن",
+    s4: "تصفير الأوقات", s4h: "تُصفَّر جميع قيم عمود time لتتمكن لاحقاً من وضع بيانات جديدة مكانها. لا يتم تعديل أي شيء آخر.", zeroInfo: "قاعدة البيانات: {name}\nفي قاعدة البيانات هذه = {rows} صف\nتصفير الوقت = {rows} صف", zeroGo: "تصفير وتنزيل", zeroDone: "تم ✓\nتصفير الوقت = {n} صف"
   },
   en: {
     appTitle: "Merge database timings", refresh: "Refresh",
-    s1: "1. Base database",
+    s1: "Base database",
     s1h: "The file that receives the timings (e.g. 1-114.db). Nothing else is modified.",
     pick: "Choose file",
-    s2: "2. Source databases",
+    s2: "Source databases",
     s2h: "One or more. Set the sura range for each. The 999 row of every sura is carried over automatically.",
-    add: "Add file", s3: "3. Merge", outLabel: "Output file name",
+    add: "Add file", s3: "Merge", outLabel: "Output file name",
     go: "Merge and download", remove: "Remove", from: "From sura", to: "To sura",
     baseInfo: "{name} · {rows} rows",
     hasTimes: "{rows} rows · suras with timings: {from} to {to}",
@@ -135,7 +145,8 @@ const I18N = {
     sqlFail: "Could not load sql.js. Check your internet or put the sql.js files next to this file.",
     done: "Done ✓", err: "Error: ",
     mergeLine: "{name} (suras {lo}–{hi}): {u} updated, {n} added, {k} rows of 999",
-    themeToLight: "Light", themeToDark: "Dark"
+    themeToLight: "Light", themeToDark: "Dark",
+    s4: "Zero out timings", s4h: "Sets every value in the time column to 0 so new data can be put in its place later. Nothing else is modified.", zeroInfo: "Database: {name}\nThis database has = {rows} rows\nZero out time = {rows} rows", zeroGo: "Zero out and download", zeroDone: "Done ✓\nZero out time = {n} rows"
   }
 };
 let lang = "ckb";
@@ -174,12 +185,13 @@ function applyLang(l) {
   $("langSel").value = lang; store.set("dbm_lang", lang);
   document.querySelectorAll("[data-i18n]").forEach(el => el.textContent = t(el.dataset.i18n));
   document.title = t("appTitle");
-  renderTheme(); renderBase(); refresh(); renderLog();
+  renderTheme(); renderBase(); refresh(); renderLog(); renderZero();
 }
 $("langSel").onchange = e => applyLang(e.target.value);
 
 /* ---------- db helpers ---------- */
 async function openDb(file) {
+  try { await sqlReady; } catch (_) { const e = new Error("sql.js"); e.i18n = ["sqlFail", {}]; throw e; }
   const db = new SQL.Database(new Uint8Array(await file.arrayBuffer()));
   if (!db.exec("select 1 from sqlite_master where name='timings'").length) {
     db.close(); const e = new Error("no table"); e.i18n = ["noTable", { name: file.name }]; throw e;
@@ -233,12 +245,10 @@ $("baseF").onchange = async e => {
   try {
     if (base) base.close();
     base = await openDb(f); base.name = f.name; base.rows = stats(base).rows;
-    if (!$("outName").dataset.touched) $("outName").value = f.name.replace(/\.db$/i, "") + "-merged.db";
     setLog(null);
   } catch (err) { base = null; showErr(err); }
   renderBase(); refresh();
 };
-$("outName").oninput = e => e.target.dataset.touched = 1;
 
 $("srcF").onchange = async e => {
   for (const f of e.target.files) {
@@ -256,8 +266,10 @@ $("refreshBtn").onclick = () => {
   if (base) { base.close(); base = null; }
   sources.forEach(s => s.db.close()); sources = []; uid = 0;
   $("baseF").value = ""; $("srcF").value = "";
-  $("outName").value = "merged.db"; delete $("outName").dataset.touched;
-  setLog(null); renderBase(); refresh(); window.scrollTo(0, 0);
+  $("outName").value = "output.db";
+  if (zero) { zero.db.close(); zero = null; }
+  $("zeroF").value = ""; $("zeroOut").value = "output.db"; zLogFn = null; zLogCls = "";
+  setLog(null); renderBase(); refresh(); renderZero(); window.scrollTo(0, 0);
 };
 
 /* ---------- save + merge ---------- */
@@ -292,15 +304,63 @@ $("go").onclick = () => {
       out.push({ name: s.name, lo, hi, u, n, k });
     }
     base.run("commit"); upd.free(); ins.free();
-    saveBytes(base.export(), $("outName").value.trim() || "merged.db");
+    saveBytes(base.export(), $("outName").value.trim() || "output.db");
     setLog(() => t("done") + "\n" + out.map(o => t("mergeLine", o)).join("\n"), "ok");
   } catch (err) { try { base.run("rollback"); } catch (_) {} showErr(err); }
 };
 
+/* ---------- zero out ---------- */
+let zero = null, zLogFn = null, zLogCls = "";
+function renderZero() {
+  $("zeroInfo").textContent = zero ? t("zeroInfo", { name: "\u2068" + zero.name + "\u2069", rows: zero.rows }) : "";
+  $("zeroGo").disabled = !zero;
+  const p = $("zlog"); p.className = zLogCls; p.textContent = zLogFn ? zLogFn() : "";
+}
+const setZLog = (fn, cls) => { zLogFn = fn; zLogCls = cls || ""; renderZero(); };
+$("zeroF").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const db = await openDb(f);
+    if (zero) zero.db.close();
+    const r = db.exec("select count(*) from timings")[0].values[0];
+    zero = { db, name: f.name, rows: r[0] };
+    setZLog(null);
+  } catch (err) {
+    zero = null;
+    setZLog(() => err.i18n ? t(err.i18n[0], err.i18n[1]) : t("err") + err.message, "bad");
+  }
+};
+$("zeroGo").onclick = () => {
+  try {
+    zero.db.run("update timings set time=0");
+    const n = zero.db.getRowsModified();
+    saveBytes(zero.db.export(), $("zeroOut").value.trim() || "output.db");
+    setZLog(() => t("zeroDone", { n }), "ok");
+  } catch (err) { setZLog(() => t("err") + err.message, "bad"); }
+};
+
+/* ---------- sql.js loader: local files first (app/offline), then CDN ---------- */
+const CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/";
+const loadScript = src => new Promise((ok, fail) => {
+  const el = document.createElement("script");
+  el.src = src; el.onload = ok; el.onerror = () => fail(new Error("load " + src));
+  document.head.append(el);
+});
+async function initSql() {
+  for (const b of ["./", CDN]) {
+    try {
+      await loadScript(b + "sql-wasm.js");
+      return await initSqlJs({ locateFile: f => b + f });
+    } catch (_) {}
+  }
+  throw new Error("sql.js unavailable");
+}
+const sqlReady = initSql().then(m => (SQL = m));
+
 /* ---------- start ---------- */
 const th = store.get("dbm_theme"); if (th === "dark" || th === "light") document.documentElement.dataset.theme = th;
 applyLang(store.get("dbm_lang") || "ckb");
-initSqlJs({ locateFile: f => SQLJS_BASE + f }).then(m => SQL = m).catch(() => setLog(() => t("sqlFail"), "bad"));
+sqlReady.catch(() => setLog(() => t("sqlFail"), "bad"));
 </script>
 </body>
 </html>
