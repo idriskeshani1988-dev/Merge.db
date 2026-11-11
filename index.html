@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DB Merge</title>
 <style>
-:root{color-scheme:light;--bg:#f6f7f9;--card:#fff;--ink:#1b2430;--mute:#66707d;--line:#d9dde3;--acc:#0f6e6e;--accInk:#fff;--ok:#1a7f45;--bad:#b3261e}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#12171d;--card:#1b222b;--ink:#e8ecf1;--mute:#9aa5b1;--line:#2c3541;--acc:#4cc2bd;--accInk:#08201f;--ok:#5fd38d;--bad:#ff8a80}}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#12171d;--card:#1b222b;--ink:#e8ecf1;--mute:#9aa5b1;--line:#2c3541;--acc:#4cc2bd;--accInk:#08201f;--ok:#5fd38d;--bad:#ff8a80}
+:root{color-scheme:light;--bg:#f6f7f9;--card:#fff;--ink:#1b2430;--mute:#66707d;--line:#d9dde3;--acc:#0f6e6e;--accInk:#fff;--ok:#1a7f45;--bad:#b3261e;--z:#b45309;--zInk:#fff;--zBg:#fff6ea;--zLine:#f0cfa0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#12171d;--card:#1b222b;--ink:#e8ecf1;--mute:#9aa5b1;--line:#2c3541;--acc:#4cc2bd;--accInk:#08201f;--ok:#5fd38d;--bad:#ff8a80;--z:#f2a65a;--zInk:#2a1500;--zBg:#251d15;--zLine:#5b4326}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#12171d;--card:#1b222b;--ink:#e8ecf1;--mute:#9aa5b1;--line:#2c3541;--acc:#4cc2bd;--accInk:#08201f;--ok:#5fd38d;--bad:#ff8a80;--z:#f2a65a;--zInk:#2a1500;--zBg:#251d15;--zLine:#5b4326}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,"Noto Naskh Arabic",Tahoma,sans-serif;padding:0 16px 16px}
 .top{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 0;margin:0 auto 6px;max-width:640px;border-bottom:1px solid var(--line)}
@@ -17,6 +17,11 @@ main{max-width:640px;margin:0 auto;display:grid;gap:14px}
 h1{font-size:1.3rem;margin:4px 0}
 section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
 h2{font-size:1rem;margin:0 0 8px}
+section.zero{background:var(--zBg);border-color:var(--zLine)}
+section.zero h2{color:var(--z)}
+section.zero .btn{background:var(--z);color:var(--zInk)}
+section.zero .btn.alt{background:transparent;color:var(--z);border:1px solid var(--z)}
+section.zero #zeroOut{border-color:var(--zLine)}
 hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 p.h{margin:0 0 10px;color:var(--mute);font-size:.9rem}
 input[type=file]{display:none}
@@ -32,6 +37,16 @@ label{font-size:.9rem;color:var(--mute)}
 #outName,#zeroOut{width:100%;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;direction:ltr;text-align:left}
 #log{white-space:pre-wrap;font-size:.9rem;margin:0;color:var(--mute)}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
+.mt{margin-top:10px;font-size:.85rem;color:var(--mute)}
+.map{display:grid;grid-template-columns:repeat(auto-fill,minmax(24px,1fr));gap:3px;margin-top:6px}
+.c{display:block;text-align:center;font-size:10px;line-height:20px;border-radius:4px}
+.c.f{background:var(--ok);color:var(--accInk)}
+.c.p{background:var(--z);color:var(--zInk)}
+.c.e{background:var(--line);color:var(--mute)}
+.c.in{outline:2px solid var(--ink);outline-offset:1px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:.8rem;color:var(--mute)}
+.lg{display:inline-flex;align-items:center;gap:5px}
+.lg .c{width:14px;height:14px;line-height:14px;font-size:0;display:inline-block}
 </style>
 </head>
 <body>
@@ -53,6 +68,7 @@ label{font-size:.9rem;color:var(--mute)}
 <label class="btn alt" for="baseF" data-i18n="pick"></label>
 <input type="file" id="baseF" accept=".db,.sqlite,.sqlite3">
 <div id="baseInfo" class="h" style="margin-top:8px"></div>
+<div id="baseMap"></div>
 <hr>
 <h2 data-i18n="s2"></h2>
 <p class="h" data-i18n="s2h"></p>
@@ -69,12 +85,17 @@ label{font-size:.9rem;color:var(--mute)}
 <p id="log" style="margin-top:10px"></p>
 </section>
 
-<section>
+<section class="zero">
 <h2 data-i18n="s4"></h2>
 <p class="h" data-i18n="s4h"></p>
 <label class="btn alt" for="zeroF" data-i18n="pick"></label>
 <input type="file" id="zeroF" accept=".db,.sqlite,.sqlite3">
 <div id="zeroInfo" class="h" style="margin-top:8px;white-space:pre-line"></div>
+<div id="zeroMap"></div>
+<div class="row" style="margin:10px 0">
+<label data-i18n="from"></label><input class="rng" id="zFrom" type="text" inputmode="numeric" lang="en" dir="ltr" value="1">
+<label data-i18n="to"></label><input class="rng" id="zTo" type="text" inputmode="numeric" lang="en" dir="ltr" value="114">
+</div>
 <input type="text" id="zeroOut" value="output.db">
 <div class="row" style="margin-top:10px">
 <button class="btn" id="zeroGo" disabled data-i18n="zeroGo"></button>
@@ -89,11 +110,11 @@ const $ = id => document.getElementById(id);
 /* ---------- i18n ---------- */
 const I18N = {
   ckb: {
-    appTitle: "تێکەڵکردنی کاتەکانی داتابەیس", refresh: "ڕیفرێش",
+    appTitle: "تێکەڵکردنی کاتەکانی داتابەیس", mapTitle: "نەخشەی سورەتەکان (1 تا 114)", mapFull: "کاتی تەواو", mapPartial: "کاتی ناتەواو", mapEmpty: "بەتاڵ یان سفر", refresh: "ڕیفرێش",
     s1: "داتابەیسی بنەڕەت",
     s1h: "ئەو فایلەی کاتەکانی تێدا زیاد دەکرێن (بۆ نموونە 1-114.db). هیچ شتێکی تری دەستکاری ناکرێت.",
     pick: "هەڵبژاردنی فایل",
-    s2: "داتابەیسەکانی سەرچاوە",
+    s2: "کاتی ئەم داتابەیسە زیاد دەکرێت بۆ ناو کاتی داتابەیسی بنەڕەت",
     s2h: "یەک یان زیاتر. بۆ هەر یەکێک ڕێژەی سورەتەکان دیاری بکە. ڕیزی 999ی هەر سورەتێک خۆکارانە لەگەڵیدا دەگوازرێتەوە.",
     add: "زیادکردنی فایل", s3: "تێکەڵکردن", outLabel: "ناوی فایلی دەرچوو",
     go: "تێکەڵکردن و دابەزاندن", remove: "لابردن", from: "لە سورەتی", to: "تا سورەتی",
@@ -106,14 +127,14 @@ const I18N = {
     done: "تەواو بوو ✓", err: "هەڵە: ",
     mergeLine: "{name} (سورەتی {lo}–{hi}): {u} نوێکرایەوە، {n} زیادکرا، {k} ڕیزی 999",
     themeToLight: "ڕووناک", themeToDark: "تاریک",
-    s4: "سفرکردنی کاتەکان", s4h: "هەموو ژمارەکانی ستوونی time دەکرێن بە 0 بۆ ئەوەی دواتر داتای نوێ لە شوێنیان دابنێیت. هیچ شتێکی تر دەستکاری ناکرێت.", zeroInfo: "داتابەیس: {name}\nلەم داتابەیسەدا = {rows} ڕێز هەیە\nسفرکردنی تایم = {rows} ڕێز", zeroGo: "سفرکردن و دابەزاندن", zeroDone: "تەواو بوو ✓\nسفرکردنی تایم = {n} ڕێز"
+    s4: "سفرکردنی کاتەکان", s4h: "ژمارەکانی ستوونی time بۆ ڕێژەی سورەتی هەڵبژێردراو دەکرێن بە 0 (بە بنەڕەت هەموو 1 تا 114)، بۆ ئەوەی دواتر داتای نوێ لە شوێنیان دابنێیت. هیچ شتێکی تر دەستکاری ناکرێت.", zeroInfo: "داتابەیس: {name}\nلەم داتابەیسەدا = {rows} ڕێز هەیە\nسفرکردنی تایم = {cnt} ڕێز", zeroGo: "سفرکردن و دابەزاندن", zeroDone: "تەواو بوو ✓\nسفرکردنی تایم = {n} ڕێز"
   },
   ar: {
-    appTitle: "دمج أوقات قاعدة البيانات", refresh: "تحديث",
+    appTitle: "دمج أوقات قاعدة البيانات", mapTitle: "خريطة السور (1 إلى 114)", mapFull: "أوقات كاملة", mapPartial: "أوقات ناقصة", mapEmpty: "فارغ أو صفر", refresh: "تحديث",
     s1: "قاعدة البيانات الأساسية",
     s1h: "الملف الذي ستُضاف إليه الأوقات (مثال: 1-114.db). لا يتم تعديل أي شيء آخر.",
     pick: "اختيار ملف",
-    s2: "قواعد بيانات المصدر",
+    s2: "تُضاف أوقات قاعدة البيانات هذه إلى أوقات قاعدة البيانات الأساسية",
     s2h: "ملف واحد أو أكثر. حدّد نطاق السور لكل ملف. صف 999 لكل سورة يُنقل تلقائياً معها.",
     add: "إضافة ملف", s3: "الدمج", outLabel: "اسم الملف الناتج",
     go: "دمج وتنزيل", remove: "إزالة", from: "من سورة", to: "إلى سورة",
@@ -126,14 +147,14 @@ const I18N = {
     done: "تم ✓", err: "خطأ: ",
     mergeLine: "{name} (السور {lo}–{hi}): تم تحديث {u}، وإضافة {n}، و{k} صف 999",
     themeToLight: "فاتح", themeToDark: "داكن",
-    s4: "تصفير الأوقات", s4h: "تُصفَّر جميع قيم عمود time لتتمكن لاحقاً من وضع بيانات جديدة مكانها. لا يتم تعديل أي شيء آخر.", zeroInfo: "قاعدة البيانات: {name}\nفي قاعدة البيانات هذه = {rows} صف\nتصفير الوقت = {rows} صف", zeroGo: "تصفير وتنزيل", zeroDone: "تم ✓\nتصفير الوقت = {n} صف"
+    s4: "تصفير الأوقات", s4h: "تُصفَّر قيم عمود time للسور المحددة (افتراضياً من 1 إلى 114) لتتمكن لاحقاً من وضع بيانات جديدة مكانها. لا يتم تعديل أي شيء آخر.", zeroInfo: "قاعدة البيانات: {name}\nفي قاعدة البيانات هذه = {rows} صف\nتصفير الوقت = {cnt} صف", zeroGo: "تصفير وتنزيل", zeroDone: "تم ✓\nتصفير الوقت = {n} صف"
   },
   en: {
-    appTitle: "Merge database timings", refresh: "Refresh",
+    appTitle: "Merge database timings", mapTitle: "Sura map (1 to 114)", mapFull: "Full timings", mapPartial: "Partial timings", mapEmpty: "Empty or zero", refresh: "Refresh",
     s1: "Base database",
     s1h: "The file that receives the timings (e.g. 1-114.db). Nothing else is modified.",
     pick: "Choose file",
-    s2: "Source databases",
+    s2: "This database's timings are added to the base database's timings",
     s2h: "One or more. Set the sura range for each. The 999 row of every sura is carried over automatically.",
     add: "Add file", s3: "Merge", outLabel: "Output file name",
     go: "Merge and download", remove: "Remove", from: "From sura", to: "To sura",
@@ -146,7 +167,7 @@ const I18N = {
     done: "Done ✓", err: "Error: ",
     mergeLine: "{name} (suras {lo}–{hi}): {u} updated, {n} added, {k} rows of 999",
     themeToLight: "Light", themeToDark: "Dark",
-    s4: "Zero out timings", s4h: "Sets every value in the time column to 0 so new data can be put in its place later. Nothing else is modified.", zeroInfo: "Database: {name}\nThis database has = {rows} rows\nZero out time = {rows} rows", zeroGo: "Zero out and download", zeroDone: "Done ✓\nZero out time = {n} rows"
+    s4: "Zero out timings", s4h: "Sets the time values of the selected suras to 0 (all 1 to 114 by default) so new data can be put in their place later. Nothing else is modified.", zeroInfo: "Database: {name}\nThis database has = {rows} rows\nZero out time = {cnt} rows", zeroGo: "Zero out and download", zeroDone: "Done ✓\nZero out time = {n} rows"
   }
 };
 let lang = "ckb";
@@ -160,7 +181,11 @@ const store = {
 let SQL, base = null, sources = [], uid = 0, logFn = null, logCls = "";
 const setLog = (fn, cls) => { logFn = fn; logCls = cls || ""; renderLog(); };
 function renderLog() { const p = $("log"); p.className = logCls; p.textContent = logFn ? logFn() : ""; }
-function renderBase() { $("baseInfo").textContent = base ? t("baseInfo", { name: base.name, rows: base.rows }) : ""; }
+function renderBase() {
+  $("baseInfo").textContent = base ? t("baseInfo", { name: base.name, rows: base.rows }) : "";
+  const bm = $("baseMap"); bm.innerHTML = "";
+  if (base && base.status) bm.append(buildMap(base.status));
+}
 function showErr(err) { setLog(() => err.i18n ? t(err.i18n[0], err.i18n[1]) : t("err") + err.message, "bad"); }
 
 /* ---------- theme ---------- */
@@ -207,8 +232,38 @@ function rangeFromName(name) {
   return a >= 1 && b <= 114 ? [a, b] : null;
 }
 function stats(db) {
-  const r = db.exec("select count(*), min(case when time<>0 then sura end), max(case when time<>0 then sura end) from timings")[0].values[0];
+  const r = db.exec("select count(*), min(case when cast(time as integer)<>0 then sura end), max(case when cast(time as integer)<>0 then sura end) from timings")[0].values[0];
   return { rows: r[0], from: r[1], to: r[2] };
+}
+
+/* ---------- sura map ---------- */
+// empty text ("") and NULL count as no time. f = every ayah after the first has a time, p = some do, e = none (first ayah is always 0, so it is ignored)
+function suraStatus(db) {
+  const st = new Array(115).fill("e");
+  const q = db.exec("select sura, count(*), sum(cast(time as integer)<>0) from timings where ayah>1 group by sura");
+  if (q.length) for (const [su, n, nz] of q[0].values) if (su >= 1 && su <= 114) st[su] = !nz ? "e" : nz === n ? "f" : "p";
+  return st;
+}
+function buildMap(st) {
+  const wrap = document.createElement("div");
+  const ttl = document.createElement("div"); ttl.className = "mt"; ttl.textContent = t("mapTitle");
+  const grid = document.createElement("div"); grid.className = "map"; grid.dir = "ltr";
+  for (let i = 1; i <= 114; i++) {
+    const c = document.createElement("span"); c.className = "c " + st[i]; c.textContent = i; grid.append(c);
+  }
+  const lg = document.createElement("div"); lg.className = "legend";
+  for (const [k, key] of [["f", "mapFull"], ["p", "mapPartial"], ["e", "mapEmpty"]]) {
+    const it = document.createElement("span"); it.className = "lg";
+    const sw = document.createElement("i"); sw.className = "c " + k;
+    const tx = document.createElement("span"); tx.textContent = t(key);
+    it.append(sw, tx); lg.append(it);
+  }
+  wrap.append(ttl, grid, lg);
+  wrap.paint = (a, b) => {
+    const lo = Math.min(a, b), hi = Math.max(a, b);
+    [...grid.children].forEach((c, i) => c.classList.toggle("in", i + 1 >= lo && i + 1 <= hi));
+  };
+  return wrap;
 }
 
 /* ---------- UI ---------- */
@@ -229,14 +284,15 @@ function refresh() {
       + " · " + t(s.by === "name" ? "byName" : "byContent");
     const r = document.createElement("div"); r.className = "row"; r.style.marginTop = "8px";
     const a = document.createElement("input"), b = document.createElement("input");
+    const mp = buildMap(s.status); mp.paint(s.from, s.to);
     for (const [el, k] of [[a, "from"], [b, "to"]]) {
       el.type = "text"; el.inputMode = "numeric"; el.lang = "en"; el.dir = "ltr"; el.className = "rng"; el.value = s[k];
-      el.oninput = () => { el.value = latin(el.value); s[k] = +el.value; };
+      el.oninput = () => { el.value = latin(el.value); s[k] = +el.value; mp.paint(s.from, s.to); };
     }
     const l1 = document.createElement("label"); l1.textContent = t("from");
     const l2 = document.createElement("label"); l2.textContent = t("to");
     r.append(l1, a, l2, b);
-    d.append(hdr, sm, r); $("srcs").append(d);
+    d.append(hdr, sm, r, mp); $("srcs").append(d);
   });
 }
 
@@ -244,7 +300,7 @@ $("baseF").onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   try {
     if (base) base.close();
-    base = await openDb(f); base.name = f.name; base.rows = stats(base).rows;
+    base = await openDb(f); base.name = f.name; base.rows = stats(base).rows; base.status = suraStatus(base);
     setLog(null);
   } catch (err) { base = null; showErr(err); }
   renderBase(); refresh();
@@ -254,7 +310,7 @@ $("srcF").onchange = async e => {
   for (const f of e.target.files) {
     try {
       const db = await openDb(f), st = stats(db), nr = rangeFromName(f.name);
-      sources.push({ id: ++uid, name: f.name, db, st, by: nr ? "name" : "content",
+      sources.push({ id: ++uid, name: f.name, db, st, status: suraStatus(db), by: nr ? "name" : "content",
         from: nr ? nr[0] : (st.from || 1), to: nr ? nr[1] : (st.to || 114) });
     } catch (err) { showErr(err); }
   }
@@ -268,7 +324,7 @@ $("refreshBtn").onclick = () => {
   $("baseF").value = ""; $("srcF").value = "";
   $("outName").value = "output.db";
   if (zero) { zero.db.close(); zero = null; }
-  $("zeroF").value = ""; $("zeroOut").value = "output.db"; zLogFn = null; zLogCls = "";
+  $("zeroF").value = ""; $("zeroOut").value = "output.db"; $("zFrom").value = "1"; $("zTo").value = "114"; zLogFn = null; zLogCls = "";
   setLog(null); renderBase(); refresh(); renderZero(); window.scrollTo(0, 0);
 };
 
@@ -295,7 +351,8 @@ $("go").onclick = () => {
       const q = s.db.prepare("select sura,ayah,time from timings where sura between ? and ?", [lo, hi]);
       let u = 0, n = 0, k = 0;
       while (q.step()) {
-        const [su, ay, tm] = q.get();
+        const [su, ay, raw] = q.get();
+        const tm = Number(raw) || 0; // blank text, NULL or non-numeric = 0
         upd.run([tm, su, ay]);
         if (base.getRowsModified() > 0) u++; else { ins.run([su, ay, tm]); n++; }
         if (ay === 999) k++;
@@ -304,6 +361,7 @@ $("go").onclick = () => {
       out.push({ name: s.name, lo, hi, u, n, k });
     }
     base.run("commit"); upd.free(); ins.free();
+    base.status = suraStatus(base); renderBase();
     saveBytes(base.export(), $("outName").value.trim() || "output.db");
     setLog(() => t("done") + "\n" + out.map(o => t("mergeLine", o)).join("\n"), "ok");
   } catch (err) { try { base.run("rollback"); } catch (_) {} showErr(err); }
@@ -311,19 +369,29 @@ $("go").onclick = () => {
 
 /* ---------- zero out ---------- */
 let zero = null, zLogFn = null, zLogCls = "";
+const clamp = (v, d) => Math.min(114, Math.max(1, parseInt(v, 10) || d));
+function zRange() { const a = clamp($("zFrom").value, 1), b = clamp($("zTo").value, 114); return a > b ? [b, a] : [a, b]; }
 function renderZero() {
-  $("zeroInfo").textContent = zero ? t("zeroInfo", { name: "\u2068" + zero.name + "\u2069", rows: zero.rows }) : "";
-  $("zeroGo").disabled = !zero;
+  const mp = $("zeroMap"); mp.innerHTML = "";
+  if (zero) {
+    const [lo, hi] = zRange();
+    zero.cnt = lo === 1 && hi === 114 ? zero.rows : zero.db.exec("select count(*) from timings where sura between " + lo + " and " + hi)[0].values[0][0];
+    const m = buildMap(zero.status); m.paint(lo, hi); mp.append(m);
+  }
+  $("zeroInfo").textContent = zero ? t("zeroInfo", { name: "\u2068" + zero.name + "\u2069", rows: zero.rows, cnt: zero.cnt }) : "";
+  $("zeroGo").disabled = !zero || !zero.cnt;
   const p = $("zlog"); p.className = zLogCls; p.textContent = zLogFn ? zLogFn() : "";
 }
 const setZLog = (fn, cls) => { zLogFn = fn; zLogCls = cls || ""; renderZero(); };
+["zFrom", "zTo"].forEach(id => $(id).oninput = e => { e.target.value = latin(e.target.value); renderZero(); });
 $("zeroF").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try {
     const db = await openDb(f);
     if (zero) zero.db.close();
     const r = db.exec("select count(*) from timings")[0].values[0];
-    zero = { db, name: f.name, rows: r[0] };
+    zero = { db, name: f.name, rows: r[0], status: suraStatus(db) };
+    $("zFrom").value = "1"; $("zTo").value = "114";
     setZLog(null);
   } catch (err) {
     zero = null;
@@ -332,9 +400,12 @@ $("zeroF").onchange = async e => {
 };
 $("zeroGo").onclick = () => {
   try {
-    zero.db.run("update timings set time=0");
+    const [lo, hi] = zRange();
+    if (lo === 1 && hi === 114) zero.db.run("update timings set time=0"); // whole range = every row, whatever its sura value
+    else zero.db.run("update timings set time=0 where sura between ? and ?", [lo, hi]);
     const n = zero.db.getRowsModified();
     saveBytes(zero.db.export(), $("zeroOut").value.trim() || "output.db");
+    zero.status = suraStatus(zero.db);
     setZLog(() => t("zeroDone", { n }), "ok");
   } catch (err) { setZLog(() => t("err") + err.message, "bad"); }
 };
